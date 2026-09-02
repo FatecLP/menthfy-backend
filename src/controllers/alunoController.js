@@ -21,3 +21,16 @@ exports.createAluno = async (req, res) => {
         });
     }
 };
+
+exports.getAllAlunos = async (req, res) => {
+    try {
+        const [alunos] = await db.query(
+            "SELECT * FROM Alunos"
+        );
+
+        res.json(alunos);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({message: "Erro ao buscar alunos"})
+    }
+}
