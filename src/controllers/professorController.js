@@ -1,125 +1,112 @@
-const db = require('../config/db');
+const ProfessorRepositoryImpl = require('../repositories/ProfessorRepositoryImpl');
+const ProfessorServiceImpl = require('../services/ProfessorServiceImpl');
 
-exports.getAllProfessores = async (req, res) => {
-    try {
-        const [professores] = await db.query(`
-            SELECT 
-                p.id,
-                p.nome,
-                p.disciplina_principal,
-                p.descricao,
-                p.quantidade_alunos,
-                p.tempo_resposta_minutos,
-                p.preco_hora,
-                p.foto_url,
-                p.email,
-                COALESCE(ROUND(AVG(a.nota), 1), p.media_avaliacao) as media_avaliacao,
-                COUNT(a.id) as total_avaliacoes
-            FROM professores p
-            LEFT JOIN avaliacoes a ON p.id = a.professor_id
-            GROUP BY p.id, p.nome, p.disciplina_principal, p.descricao, p.quantidade_alunos, p.tempo_resposta_minutos, p.preco_hora, p.foto_url, p.email, p.media_avaliacao
-        `);
-        res.json(professores);
-    } catch (error) {
-        console.error('Erro ao buscar professores:', error);
-        res.status(500).json({ message: 'Erro interno do servidor' });
+class ProfessorController {
+    constructor(professorService) {
+        this.professorService = professorService;
+
+        this.getAllProfessores = this.getAllProfessores.bind(this);
+        this.getProfessorById = this.getProfessorById.bind(this);
+        this.getProfessorByName = this.getProfessorByName.bind(this);
+        this.createProfessor = this.createProfessor.bind(this);
+
+        this.getAll = this.getAllProfessores;
+        this.getById = this.getProfessorById;
+        this.getByName = this.getProfessorByName;
+        this.create = this.createProfessor;
     }
-};
 
-exports.getProfessorById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const [professores] = await db.query('SELECT * FROM professores WHERE id = ?', [id]);
-        if (professores.length === 0) {
-            return res.status(404).json({ message: 'Professor não encontrado' });
-        }
-        
-        const professor = professores[0];
-        const [avaliacoes] = await db.query(`
-            SELECT a.*, al.nome as aluno_nome 
-            FROM avaliacoes a 
-            JOIN alunos al ON a.aluno_id = al.id 
-            WHERE a.professor_id = ?
-            ORDER BY a.data_avaliacao DESC
-        `, [id]);
+    async getAllProfessores(req, res) {
+        try {
+            const professores = await this.professorService.getAllProfessors(req.query);
+            return res.status(200).json(professores);
+        } catch (error) {
+            console.error('Erro ao buscar professores:', error);
 
-        professor.avaliacoes = avaliacoes;
-        if (avaliacoes.length > 0) {
-            const soma = avaliacoes.reduce((acc, curr) => acc + Number(curr.nota), 0);
-            professor.media_avaliacao = Number((soma / avaliacoes.length).toFixed(1));
+            const isValidationError =
+                error.message.includes('deve ser um número') ||
+                error.message.includes('não pode ser') ||
+                error.message.includes('deve estar entre');
+
+            if (isValidationError) {
+                return res.status(400).json({ message: error.message });
+            }
+
+            return res.status(500).json({ message: 'Erro interno do servidor' });
         }
-        
-        res.json(professor);
-    } catch (error) {
-        console.error('Erro ao buscar professor:', error);
-        res.status(500).json({ message: 'Erro interno do servidor' });
     }
-};
 
-exports.getProfessorByName = async (req, res) => {
-    const { nome } = req.params;
-    try {
-        const [professores] = await db.query('SELECT * FROM professores WHERE nome = ?', [nome]);
-        if (professores.length === 0) {
-            return res.status(404).json({ message: 'Professor não encontrado' });
+    async getProfessorById(req, res) {
+        try {
+            const { id } = req.params;
+            const professor = await this.professorService.getById(id);
+
+            if (!professor) {
+                return res.status(404).json({ message: 'Professor não encontrado' });
+            }
+
+            return res.status(200).json(professor);
+        } catch (error) {
+            console.error('Erro ao buscar professor por id:', error);
+
+            if (error.message.includes('obrigatório')) {
+                return res.status(400).json({ message: error.message });
+            }
+
+            return res.status(500).json({ message: 'Erro interno do servidor' });
         }
-        
-        const professor = professores[0];
-        const [avaliacoes] = await db.query(`
-            SELECT a.*, al.nome as aluno_nome 
-            FROM avaliacoes a 
-            JOIN alunos al ON a.aluno_id = al.id 
-            WHERE a.professor_id = ?
-            ORDER BY a.data_avaliacao DESC
-        `, [professor.id]);
+    }
 
-        professor.avaliacoes = avaliacoes;
-        if (avaliacoes.length > 0) {
-            const soma = avaliacoes.reduce((acc, curr) => acc + Number(curr.nota), 0);
-            professor.media_avaliacao = Number((soma / avaliacoes.length).toFixed(1));
+    async getProfessorByName(req, res) {
+        try {
+            const { nome } = req.params;
+            const professor = await this.professorService.getByName(nome);
+
+            if (!professor) {
+                return res.status(404).json({ message: 'Professor não encontrado' });
+            }
+
+            return res.status(200).json(professor);
+        } catch (error) {
+            console.error('Erro ao buscar professor por nome:', error);
+
+            if (error.message.includes('obrigatório')) {
+                return res.status(400).json({ message: error.message });
+            }
+
+            return res.status(500).json({ message: 'Erro interno do servidor' });
         }
-        
-        res.json(professor);
-    } catch (error) {
-        console.error('Erro ao buscar professor:', error);
-        res.status(500).json({ message: 'Erro interno do servidor' });
     }
-};
 
-exports.createProfessor = async (req, res) => {
-    const { nome, email, senha } = req.body;
+    async createProfessor(req, res) {
+        try {
+            const novoProfessor = await this.professorService.create(req.body);
+            return res.status(201).json(novoProfessor);
+        } catch (error) {
+            console.error('Erro ao cadastrar professor:', error);
 
-    const fotoPadrao = "/public/assets/images/default.webp";
+            if (error.message.includes('obrigatórios')) {
+                return res.status(400).json({ message: error.message });
+            }
 
-    try {
-        const [result] = await db.query(
-            `
-            INSERT INTO professores
-            (
-                nome,
-                email,
-                senha,
-                disciplina_principal,
-                descricao,
-                preco_hora,
-                foto_url
-            )
-            VALUES (?, ?, ?, 'Geral', '', 50.00, ?)
-            `,
-            [nome, email, senha, fotoPadrao],
-        );
+            if (error.code === 'ER_DUP_ENTRY') {
+                return res.status(409).json({ message: 'Email já cadastrado' });
+            }
 
-        res.status(201).json({
-            id: result.insertId,
-            nome,
-            email,
-            foto_url: fotoPadrao,
-        });
-    } catch (error) {
-        console.error(error);
-
-        res.status(500).json({
-            message: "Erro ao cadastrar professor",
-        });
+            return res.status(500).json({ message: 'Erro ao cadastrar professor' });
+        }
     }
+}
+
+const defaultRepository = new ProfessorRepositoryImpl();
+const defaultService = new ProfessorServiceImpl(defaultRepository);
+const defaultController = new ProfessorController(defaultService);
+
+module.exports = {
+    ProfessorController,
+    professorController: defaultController,
+    getAllProfessores: defaultController.getAllProfessores,
+    getProfessorById: defaultController.getProfessorById,
+    getProfessorByName: defaultController.getProfessorByName,
+    createProfessor: defaultController.createProfessor,
 };

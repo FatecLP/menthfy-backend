@@ -1,10 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const professorController = require('../controllers/professorController');
+const {
+    getAllProfessores,
+    getProfessorById,
+    getProfessorByName,
+    createProfessor
+} = require('../controllers/professorController');
 
-router.get('/', professorController.getAllProfessores);
-router.get('/:id', professorController.getProfessorById);
-router.get('/nome/:nome', professorController.getProfessorByName);
-router.post("/", professorController.createProfessor);
+router.get('/', getAllProfessores);
+router.get('/:id', getProfessorById);
+router.get('/nome/:nome', getProfessorByName);
+router.post('/', createProfessor);
 
 module.exports = router;
