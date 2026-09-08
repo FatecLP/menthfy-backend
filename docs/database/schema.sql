@@ -33,14 +33,6 @@ CREATE TABLE IF NOT EXISTS avaliacoes (
     FOREIGN KEY (aluno_id) REFERENCES alunos(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS mentorias (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    aluno_id INT NOT NULL,
-    professor_id INT NOT NULL,
-    status VARCHAR(20) DEFAULT 'PENDENTE',
-    data_solicitacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS mentorships (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     student_id BIGINT,
