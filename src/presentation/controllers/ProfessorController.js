@@ -1,9 +1,21 @@
-const ProfessorRepositoryImpl = require('../repositories/ProfessorRepositoryImpl');
-const ProfessorServiceImpl = require('../services/ProfessorServiceImpl');
+const MySqlProfessorRepository = require('../../infrastructure/persistence/MySqlProfessorRepository');
+const GetAllProfessorsUseCase = require('../../application/usecases/professor/GetAllProfessorsUseCase');
+const GetProfessorByIdUseCase = require('../../application/usecases/professor/GetProfessorByIdUseCase');
+const GetProfessorByNameUseCase = require('../../application/usecases/professor/GetProfessorByNameUseCase');
+const CreateProfessorUseCase = require('../../application/usecases/professor/CreateProfessorUseCase');
 
 class ProfessorController {
-    constructor(professorService) {
-        this.professorService = professorService;
+    constructor({
+        getAllProfessorsUseCase,
+        getProfessorByIdUseCase,
+        getProfessorByNameUseCase,
+        createProfessorUseCase,
+    } = {}) {
+        const repo = new MySqlProfessorRepository();
+        this.getAllProfessorsUseCase = getAllProfessorsUseCase || new GetAllProfessorsUseCase(repo);
+        this.getProfessorByIdUseCase = getProfessorByIdUseCase || new GetProfessorByIdUseCase(repo);
+        this.getProfessorByNameUseCase = getProfessorByNameUseCase || new GetProfessorByNameUseCase(repo);
+        this.createProfessorUseCase = createProfessorUseCase || new CreateProfessorUseCase(repo);
 
         this.getAllProfessores = this.getAllProfessores.bind(this);
         this.getProfessorById = this.getProfessorById.bind(this);
@@ -18,7 +30,7 @@ class ProfessorController {
 
     async getAllProfessores(req, res) {
         try {
-            const professores = await this.professorService.getAllProfessors(req.query);
+            const professores = await this.getAllProfessorsUseCase.execute(req.query);
             return res.status(200).json(professores);
         } catch (error) {
             console.error('Erro ao buscar professores:', error);
@@ -39,7 +51,7 @@ class ProfessorController {
     async getProfessorById(req, res) {
         try {
             const { id } = req.params;
-            const professor = await this.professorService.getById(id);
+            const professor = await this.getProfessorByIdUseCase.execute(id);
 
             if (!professor) {
                 return res.status(404).json({ message: 'Professor não encontrado' });
@@ -60,7 +72,7 @@ class ProfessorController {
     async getProfessorByName(req, res) {
         try {
             const { nome } = req.params;
-            const professor = await this.professorService.getByName(nome);
+            const professor = await this.getProfessorByNameUseCase.execute(nome);
 
             if (!professor) {
                 return res.status(404).json({ message: 'Professor não encontrado' });
@@ -80,7 +92,7 @@ class ProfessorController {
 
     async createProfessor(req, res) {
         try {
-            const novoProfessor = await this.professorService.create(req.body);
+            const novoProfessor = await this.createProfessorUseCase.execute(req.body);
             return res.status(201).json(novoProfessor);
         } catch (error) {
             console.error('Erro ao cadastrar professor:', error);
@@ -98,9 +110,7 @@ class ProfessorController {
     }
 }
 
-const defaultRepository = new ProfessorRepositoryImpl();
-const defaultService = new ProfessorServiceImpl(defaultRepository);
-const defaultController = new ProfessorController(defaultService);
+const defaultController = new ProfessorController();
 
 module.exports = {
     ProfessorController,

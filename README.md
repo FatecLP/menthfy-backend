@@ -1,43 +1,42 @@
 # Menthfy - Backend API & Gateway (Node.js & Express)
 
 [![Status do Projeto](https://img.shields.io/badge/Status-Em%20Desenvolvimento-yellow)](https://github.com/FatecLP/menthfy-backend)
-[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=nodedotjs\&logoColor=white)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-4.21-000000?logo=express\&logoColor=white)](https://expressjs.com/)
-[![MySQL](https://img.shields.io/badge/MySQL-9.6-4479A1?logo=mysql\&logoColor=white)](https://mysql.com/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Express.js](https://img.shields.io/badge/Express.js-4.21-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![MySQL](https://img.shields.io/badge/MySQL-9.6-4479A1?logo=mysql&logoColor=white)](https://mysql.com/)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean%20Architecture-blue)](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
 
 API Gateway e microsserviço de usuários responsável pela autenticação, catálogo de professores, perfis de alunos e proxy reverso da plataforma **Menthfy**.
 
 ---
 
-## 🏛️ Arquitetura da Plataforma
+## 🏛️ Arquitetura do Sistema (Clean Architecture)
 
-Este serviço atua como o ponto de entrada principal e gateway para o ecossistema distribuído do Menthfy:
+O backend foi estruturado seguindo os princípios de **Clean Architecture**, promovendo desacoplamento, testabilidade unitária e independência de frameworks e banco de dados:
 
-* 🎨 **https://github.com/FatecLP/menthfy**: Frontend SPA em React 19 + Vite.
-* 🟢 **https://github.com/FatecLP/menthfy-backend** (Este Repositório): Backend API Gateway em Node.js & Express.
-* ☕ **https://github.com/FatecLP/mentorship-service**: Microsserviço de mentorias em Java + Spring Boot.
-
-### Arquitetura do Backend
-
-O backend está estruturado seguindo princípios de **Clean Architecture** e **SOLID**, separando as responsabilidades da aplicação em camadas:
-
-```text
-Routes
-   ↓
-Controllers
-   ↓
-Services
-   ↓
-Repositories
-   ↓
-MySQL
 ```
-
-* **Routes:** direcionam as requisições para os endpoints.
-* **Controllers:** recebem as requisições HTTP e retornam as respostas.
-* **Services:** concentram regras, validações e lógica da aplicação.
-* **Repositories:** realizam o acesso aos dados e comunicação com o banco.
-* **Config:** contém configurações da aplicação, incluindo a conexão com o banco de dados.
+src/
+├── domain/                      # Camada de Domínio (Entidades e Contratos)
+│   ├── models/                  # Modelos de negócio puros (Professor, Aluno, Usuario)
+│   └── repositories/            # Interfaces de Repositório (contratos abstratos)
+│       ├── ProfessorRepository.js
+│       └── AlunoRepository.js
+│
+├── application/                 # Camada de Aplicação (Casos de Uso)
+│   └── usecases/                # Orquestração das regras de negócio
+│       ├── professor/           # GetAllProfessors, GetById, GetByName, CreateProfessor
+│       ├── aluno/               # GetAllAlunos, GetById, CreateAluno
+│       └── auth/                # LoginUseCase (autenticação unificada de usuários)
+│
+├── infrastructure/              # Camada de Infraestrutura (Implementações concretas)
+│   ├── database/                # Conexão MySQL (Pool de conexões)
+│   ├── persistence/             # Implementações com queries SQL (MySqlProfessorRepository, MySqlAlunoRepository)
+│   └── http/                    # Proxy HTTP para o microsserviço de mentorias
+│
+└── presentation/                # Camada de Apresentação (HTTP / Express)
+    ├── controllers/             # Controladores que adaptam HTTP para Use Cases
+    └── routes/                  # Definição modular de rotas Express
+```
 
 ---
 
@@ -54,118 +53,27 @@ MySQL
 
 ---
 
-## 📡 Endpoints Principais da API
+## 🌐 Integração no Ecossistema Menthfy
 
-| Método | Endpoint               | Descrição                                                    |
-| :----- | :--------------------- | :----------------------------------------------------------- |
-| `POST` | `/usuarios/login`      | Autenticação unificada de Alunos e Professores               |
-| `GET`  | `/api/professores`     | Listagem e busca de professores com filtros                  |
-| `GET`  | `/api/professores/:id` | Dados detalhados do professor e histórico de avaliações      |
-| `GET`  | `/api/alunos/:id`      | Consulta de perfil do aluno                                  |
-| `ALL`  | `/api/mentorships/*`   | Proxy reverso transparente para o microsserviço de mentorias |
-
-### Exemplos de Requisição:
-
-#### 1. Autenticação (`POST /usuarios/login`):
-
-```json
-{
-  "email": "alberto@menthfy.com",
-  "senha": "123"
-}
-```
-
-**Resposta (200 OK):**
-
-```json
-{
-  "usuario": {
-    "id": 1,
-    "nome": "Alberto",
-    "email": "alberto@menthfy.com",
-    "tipoUsuario": "Professor"
-  }
-}
-```
-
-#### 2. Catálogo de Professores (`GET /api/professores`):
-
-```http
-GET /api/professores
-```
-
-**Filtros disponíveis:**
-
-| Parâmetro          | Descrição                         |
-| :----------------- | :-------------------------------- |
-| `busca`            | Pesquisa por nome ou disciplina   |
-| `disciplina`       | Filtra pela disciplina            |
-| `precoMin`         | Define o preço mínimo por hora    |
-| `precoMax`         | Define o preço máximo por hora    |
-| `avaliacaoMin`     | Define a avaliação mínima         |
-| `tempoRespostaMax` | Define o tempo máximo de resposta |
-| `ordenar`          | Campo utilizado para ordenação    |
-| `ordem`            | Ordenação `asc` ou `desc`         |
-
-**Exemplos:**
-
-```http
-GET /api/professores?disciplina=Programação
-```
-
-```http
-GET /api/professores?precoMin=50&precoMax=100
-```
-
-```http
-GET /api/professores?avaliacaoMin=4.5
-```
-
-```http
-GET /api/professores?ordenar=preco&ordem=asc
-```
-
-Também é possível combinar múltiplos filtros:
-
-```http
-GET /api/professores?disciplina=Programação&precoMax=100&avaliacaoMin=4.5
-```
-
-**Resposta (200 OK):**
-
-```json
-[
-  {
-    "id": 1,
-    "nome": "Alberto",
-    "disciplinaPrincipal": "Programação",
-    "descricao": "Especialista em desenvolvimento web completo...",
-    "mediaAvaliacao": 5.00,
-    "quantidadeAlunos": 120,
-    "tempoRespostaMinutos": 15,
-    "precoHora": 50.00,
-    "fotoUrl": "/assets/images/img1.jpg"
-  }
-]
-```
+- 🎨 **[FatecLP/menthfy](https://github.com/FatecLP/menthfy)**: Frontend SPA em React 19 + Vite.
+- 🟢 **[FatecLP/menthfy-backend](https://github.com/FatecLP/menthfy-backend)** (Este Repositório): Backend API Gateway em Node.js & Express.
+- ☕ **[FatecLP/mentorship-service](https://github.com/FatecLP/mentorship-service)**: Microsserviço de mentorias em Java + Spring Boot.
 
 ---
 
-## 🧱 Estrutura do Repository
+## 📡 Endpoints Principais da API
 
-A busca de professores utiliza uma abstração e uma implementação concreta:
-
-```text
-ProfessorRepository
-        ↓
-ProfessorRepositoryImpl
-        ↓
-MySQL
-```
-
-O `ProfessorRepository` define os métodos disponíveis, enquanto o `ProfessorRepositoryImpl` implementa as operações utilizando consultas SQL.
-
-A implementação da busca permite aplicar filtros de preço, disciplina, avaliação, tempo de resposta, busca textual e ordenação.
+| Método | Endpoint | Descrição |
+| :--- | :--- | :--- |
+| `POST` | `/usuarios/login` | Autenticação unificada de Alunos e Professores |
+| `GET` | `/api/professores` | Listagem de professores com filtros e ordenação |
+| `GET` | `/api/professores/:id` | Detalhes do professor e histórico de avaliações |
+| `GET` | `/api/professores/nome/:nome` | Busca de professor por nome |
+| `POST` | `/api/professores` | Cadastro de novo professor |
+| `GET` | `/api/alunos` | Listagem de alunos |
+| `GET` | `/api/alunos/:id` | Consulta de perfil do aluno |
+| `POST` | `/api/alunos` | Cadastro de novo aluno |
+| `ALL` | `/api/mentorships/*` | Proxy reverso transparente para o microsserviço de mentorias |
 
 ---
 
