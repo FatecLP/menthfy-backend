@@ -1,7 +1,8 @@
-const db = require('../config/db');
-const ProfessorRepository = require('./ProfessorRepository');
+const db = require('../database/db');
+const ProfessorRepository = require('../../domain/repositories/ProfessorRepository');
+const Professor = require('../../domain/models/Professor');
 
-class ProfessorRepositoryImpl extends ProfessorRepository {
+class MySqlProfessorRepository extends ProfessorRepository {
     async getAllProfessors(filters = {}) {
         let query = `
             SELECT 
@@ -22,19 +23,12 @@ class ProfessorRepositoryImpl extends ProfessorRepository {
 
         const conditions = [];
         const params = [];
-
         const havingConditions = [];
         const havingParams = [];
 
         if (filters.busca) {
-            conditions.push(
-                `(p.nome LIKE ? OR p.disciplina_principal LIKE ?)`
-            );
-
-            params.push(
-                `%${filters.busca}%`,
-                `%${filters.busca}%`
-            );
+            conditions.push(`(p.nome LIKE ? OR p.disciplina_principal LIKE ?)`);
+            params.push(`%${filters.busca}%`, `%${filters.busca}%`);
         }
 
         if (filters.disciplina) {
@@ -52,22 +46,13 @@ class ProfessorRepositoryImpl extends ProfessorRepository {
             params.push(filters.precoMax);
         }
 
-        if (
-            filters.tempoRespostaMax !== undefined &&
-            filters.tempoRespostaMax !== null
-        ) {
+        if (filters.tempoRespostaMax !== undefined && filters.tempoRespostaMax !== null) {
             conditions.push(`p.tempo_resposta_minutos <= ?`);
             params.push(filters.tempoRespostaMax);
         }
 
-        if (
-            filters.avaliacaoMin !== undefined &&
-            filters.avaliacaoMin !== null
-        ) {
-            havingConditions.push(
-                `COALESCE(ROUND(AVG(a.nota), 1), p.media_avaliacao) >= ?`
-            );
-
+        if (filters.avaliacaoMin !== undefined && filters.avaliacaoMin !== null) {
+            havingConditions.push(`COALESCE(ROUND(AVG(a.nota), 1), p.media_avaliacao) >= ?`);
             havingParams.push(filters.avaliacaoMin);
         }
 
@@ -97,40 +82,23 @@ class ProfessorRepositoryImpl extends ProfessorRepository {
             avaliacao: 'media_avaliacao',
             preco: 'p.preco_hora',
             tempoResposta: 'p.tempo_resposta_minutos',
-            nome: 'p.nome'
+            nome: 'p.nome',
         };
 
-        const sortField =
-            allowedSortFields[filters.ordenar] || 'media_avaliacao';
-
-        const sortOrder =
-            filters.ordem &&
-            filters.ordem.toLowerCase() === 'asc'
-                ? 'ASC'
-                : 'DESC';
+        const sortField = allowedSortFields[filters.ordenar] || 'media_avaliacao';
+        const sortOrder = filters.ordem && filters.ordem.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
         query += ` ORDER BY ${sortField} ${sortOrder}`;
 
-        const [professores] = await db.query(
-            query,
-            [...params, ...havingParams]
-        );
-
-        return professores;
+        const [rows] = await db.query(query, [...params, ...havingParams]);
+        return rows.map((row) => new Professor(row));
     }
 
     async getById(id) {
-        const [professores] = await db.query(
-            'SELECT * FROM professores WHERE id = ?',
-            [id]
-        );
+        const [professores] = await db.query('SELECT * FROM professores WHERE id = ?', [id]);
+        if (professores.length === 0) return null;
 
-        if (professores.length === 0) {
-            return null;
-        }
-
-        const professor = professores[0];
-
+        const professorData = professores[0];
         const [avaliacoes] = await db.query(`
             SELECT 
                 a.*, 
@@ -141,34 +109,16 @@ class ProfessorRepositoryImpl extends ProfessorRepository {
             ORDER BY a.data_avaliacao DESC
         `, [id]);
 
-        professor.avaliacoes = avaliacoes;
-
-        if (avaliacoes.length > 0) {
-            const soma = avaliacoes.reduce(
-                (acc, curr) => acc + Number(curr.nota),
-                0
-            );
-
-            professor.media_avaliacao = Number(
-                (soma / avaliacoes.length).toFixed(1)
-            );
-        }
-
+        const professor = new Professor({ ...professorData, avaliacoes });
+        professor.calcularMediaAvaliacoes();
         return professor;
     }
 
     async getByName(nome) {
-        const [professores] = await db.query(
-            'SELECT * FROM professores WHERE nome = ?',
-            [nome]
-        );
+        const [professores] = await db.query('SELECT * FROM professores WHERE nome = ?', [nome]);
+        if (professores.length === 0) return null;
 
-        if (professores.length === 0) {
-            return null;
-        }
-
-        const professor = professores[0];
-
+        const professorData = professores[0];
         const [avaliacoes] = await db.query(`
             SELECT 
                 a.*, 
@@ -177,22 +127,17 @@ class ProfessorRepositoryImpl extends ProfessorRepository {
             JOIN alunos al ON a.aluno_id = al.id 
             WHERE a.professor_id = ?
             ORDER BY a.data_avaliacao DESC
-        `, [professor.id]);
+        `, [professorData.id]);
 
-        professor.avaliacoes = avaliacoes;
-
-        if (avaliacoes.length > 0) {
-            const soma = avaliacoes.reduce(
-                (acc, curr) => acc + Number(curr.nota),
-                0
-            );
-
-            professor.media_avaliacao = Number(
-                (soma / avaliacoes.length).toFixed(1)
-            );
-        }
-
+        const professor = new Professor({ ...professorData, avaliacoes });
+        professor.calcularMediaAvaliacoes();
         return professor;
+    }
+
+    async findByEmail(email) {
+        const [rows] = await db.query('SELECT * FROM professores WHERE email = ?', [email]);
+        if (rows.length === 0) return null;
+        return new Professor(rows[0]);
     }
 
     async create(professorData) {
@@ -202,8 +147,8 @@ class ProfessorRepositoryImpl extends ProfessorRepository {
             senha,
             disciplina_principal = 'Geral',
             descricao = '',
-            preco_hora = 50.00,
-            foto_url = '/public/assets/images/default.webp'
+            preco_hora = 50.0,
+            foto_url = '/assets/images/default.webp',
         } = professorData;
 
         const [result] = await db.query(
@@ -220,24 +165,19 @@ class ProfessorRepositoryImpl extends ProfessorRepository {
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
             `,
-            [
-                nome,
-                email,
-                senha,
-                disciplina_principal,
-                descricao,
-                preco_hora,
-                foto_url
-            ]
+            [nome, email, senha, disciplina_principal, descricao, preco_hora, foto_url]
         );
 
-        return {
+        return new Professor({
             id: result.insertId,
             nome,
             email,
-            foto_url
-        };
+            foto_url,
+            disciplina_principal,
+            descricao,
+            preco_hora,
+        });
     }
 }
 
-module.exports = ProfessorRepositoryImpl;
+module.exports = MySqlProfessorRepository;
