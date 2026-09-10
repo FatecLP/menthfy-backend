@@ -12,6 +12,9 @@ on:
 jobs:
   install-dependencies:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
     env:
       NODE_ENV: test
       PORT: ${{ vars.PORT }}
@@ -33,10 +36,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
-      - name: Configurar Node.JS
+      - name: Configurar Node.JS ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Instalar dependências
