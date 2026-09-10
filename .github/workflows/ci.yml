@@ -24,3 +24,7 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      - name: Executar lint
+        run: npm run lint
+
